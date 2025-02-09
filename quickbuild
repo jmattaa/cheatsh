@@ -1,0 +1,8 @@
+main="main.go";
+sources="*.go";
+bin="cheatsh";
+
+"cheatsh" {
+    depends=[sources];
+    run="go build -o [bin] [main]";
+}

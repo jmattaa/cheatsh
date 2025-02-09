@@ -1,0 +1,3 @@
+- [ ] add functionality to save markdown to file (maybe through -o flag?)
+- [ ] adjust the system command to be better i guess
+- [ ] do output in another way than using glow maybe?

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -22,42 +23,53 @@ type OllamaResponse struct {
 	EvalDuration    int    `json:"eval_duration"`
 }
 
-// TODO: make this stream the repsonse instead of just returning a string
-// cuz it be nicer when you see what's happening
-func GetCheatSheet(topic string) string {
+func GetCheatSheet(topic string) <-chan string {
 	systemPrompt :=
 		"You are a helpful assistant that generates, markdown formatted cheat sheets for a given topic, you must use markdown formatting. The given topic is: "
-
 	requestBody := fmt.Sprintf(`{
 		"model": "mistral",
 		"prompt": "%s%s",
-		"stream": false
+		"stream": true
 	}`, systemPrompt, topic)
 
-	res, err := http.Post(
-		"http://localhost:11434/api/generate",
-		"application/json",
-		bytes.NewBuffer([]byte(requestBody)),
-	)
+	output := make(chan string)
 
-	if err != nil {
-		return "An error occured while requesting: " + err.Error()
-	}
-	defer res.Body.Close()
+	go func() {
+        defer close(output)
 
-	if res.StatusCode != http.StatusOK {
-		return "Unexpected status code: " + res.Status
-	}
+		res, err := http.Post(
+			"http://localhost:11434/api/generate",
+			"application/json",
+			bytes.NewBuffer([]byte(requestBody)),
+		)
 
-	OllamaResponse := OllamaResponse{}
-	derr := json.NewDecoder(res.Body).Decode(&OllamaResponse)
-	if derr != nil {
-		return "An error occured while decoding " + derr.Error()
-	}
+		if err != nil {
+			output <- "An error occured while requesting: " + err.Error()
+			return
+		}
+		defer res.Body.Close()
 
-	if OllamaResponse.Response == "" {
-		return "Got an empty response wut :("
-	}
+		if res.StatusCode != http.StatusOK {
+			output <- "Unexpected status code: " + res.Status
+			return
+		}
 
-	return OllamaResponse.Response
+		decoder := json.NewDecoder(res.Body)
+		for {
+			var chunk OllamaResponse
+			if err := decoder.Decode(&chunk); err != nil {
+				if err == io.EOF {
+					break
+				}
+				output <- "An error occurred while parsing: " + err.Error()
+				return
+			}
+			output <- chunk.Response
+			if chunk.Done {
+				break
+			}
+		}
+	}()
+
+	return output
 }

@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/jmattaa/cheatsh/ai"
-	"github.com/jmattaa/cheatsh/formatter"
+	"github.com/jmattaa/cheatsh/mdrenderer"
 )
 
 func main() {
@@ -22,16 +22,27 @@ func main() {
 
 	println("getting a cheat sheet on:", topic)
 
-	res := ai.GetCheatSheet(topic)
-	formatter.Print(res)
+	var file *os.File
+	var err error
+	if outputfile != "" {
+		file, err = os.Create(outputfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer file.Close()
+	}
 
-	// write to file
-    if outputfile == "" {
-        return
-    }
+	for chunk := range ai.GetCheatSheet(topic) {
+		mdrenderer.Print(chunk) 
 
-    err := os.WriteFile(outputfile, []byte(res), 0644)
-    if err != nil {
-        log.Fatal(err)
-    }
+		if file != nil {
+			_, err := file.WriteString(chunk)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+
+    // just add an newline at the end
+    println("");
 }

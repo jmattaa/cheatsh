@@ -6,3 +6,7 @@ bin="cheatsh";
     depends=[sources];
     run="go build -o [bin] [main]";
 }
+
+"clean" {
+    run="rm -f [bin]";
+}
